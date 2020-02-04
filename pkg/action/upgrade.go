@@ -41,16 +41,17 @@ type Upgrade struct {
 
 	ChartPathOptions
 
-	Install      bool
-	Devel        bool
-	Namespace    string
-	Timeout      time.Duration
-	Wait         bool
-	DisableHooks bool
-	DryRun       bool
-	Force        bool
-	ResetValues  bool
-	ReuseValues  bool
+	Install       bool
+	Devel         bool
+	Namespace     string
+	Timeout       time.Duration
+	Wait          bool
+	DisableHooks  bool
+	DryRun        bool
+	Force         bool
+	ResetValues   bool
+	ReuseValues   bool
+	DisableVerify bool
 	// Recreate will (if true) recreate pods after a rollback.
 	Recreate bool
 	// MaxHistory limits the maximum number of revisions saved per release
@@ -185,7 +186,7 @@ func (u *Upgrade) prepareUpgrade(name string, chart *chart.Chart, vals map[strin
 	if len(notesTxt) > 0 {
 		upgradedRelease.Info.Notes = notesTxt
 	}
-	err = validateManifest(u.cfg.KubeClient, manifestDoc.Bytes())
+	err = validateManifest(u.cfg.KubeClient, manifestDoc.Bytes(), u.DisableVerify)
 	return currentRelease, upgradedRelease, err
 }
 
@@ -194,7 +195,7 @@ func (u *Upgrade) performUpgrade(originalRelease, upgradedRelease *release.Relea
 	if err != nil {
 		return upgradedRelease, errors.Wrap(err, "unable to build kubernetes objects from current release manifest")
 	}
-	target, err := u.cfg.KubeClient.Build(bytes.NewBufferString(upgradedRelease.Manifest), true)
+	target, err := u.cfg.KubeClient.Build(bytes.NewBufferString(upgradedRelease.Manifest), !u.DisableVerify)
 	if err != nil {
 		return upgradedRelease, errors.Wrap(err, "unable to build kubernetes objects from new release manifest")
 	}
@@ -229,7 +230,7 @@ func (u *Upgrade) performUpgrade(originalRelease, upgradedRelease *release.Relea
 
 	// pre-upgrade hooks
 	if !u.DisableHooks {
-		if err := u.cfg.execHook(upgradedRelease, release.HookPreUpgrade, u.Timeout); err != nil {
+		if err := u.cfg.execHook(upgradedRelease, release.HookPreUpgrade, u.Timeout, u.DisableVerify); err != nil {
 			return u.failRelease(upgradedRelease, kube.ResourceList{}, fmt.Errorf("pre-upgrade hooks failed: %s", err))
 		}
 	} else {
@@ -261,7 +262,7 @@ func (u *Upgrade) performUpgrade(originalRelease, upgradedRelease *release.Relea
 
 	// post-upgrade hooks
 	if !u.DisableHooks {
-		if err := u.cfg.execHook(upgradedRelease, release.HookPostUpgrade, u.Timeout); err != nil {
+		if err := u.cfg.execHook(upgradedRelease, release.HookPostUpgrade, u.Timeout, u.DisableVerify); err != nil {
 			return u.failRelease(upgradedRelease, results.Created, fmt.Errorf("post-upgrade hooks failed: %s", err))
 		}
 	}
@@ -372,8 +373,8 @@ func (u *Upgrade) reuseValues(chart *chart.Chart, current *release.Release, newV
 	return newVals, nil
 }
 
-func validateManifest(c kube.Interface, manifest []byte) error {
-	_, err := c.Build(bytes.NewReader(manifest), true)
+func validateManifest(c kube.Interface, manifest []byte, disableVerify bool) error {
+	_, err := c.Build(bytes.NewReader(manifest), !disableVerify)
 	return err
 }
 

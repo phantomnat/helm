@@ -83,6 +83,7 @@ type Install struct {
 	Atomic           bool
 	SkipCRDs         bool
 	SubNotes         bool
+	DisableVerify   bool
 	// APIVersions allows a manual set of supported API Versions to be passed
 	// (for things like templating). These are ignored if ClientOnly is false
 	APIVersions chartutil.VersionSet
@@ -226,7 +227,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 	// Mark this release as in-progress
 	rel.SetStatus(release.StatusPendingInstall, "Initial install underway")
 
-	resources, err := i.cfg.KubeClient.Build(bytes.NewBufferString(rel.Manifest), true)
+	resources, err := i.cfg.KubeClient.Build(bytes.NewBufferString(rel.Manifest), !i.DisableVerify)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to build kubernetes objects from release manifest")
 	}
@@ -267,7 +268,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 
 	// pre-install hooks
 	if !i.DisableHooks {
-		if err := i.cfg.execHook(rel, release.HookPreInstall, i.Timeout); err != nil {
+		if err := i.cfg.execHook(rel, release.HookPreInstall, i.Timeout, i.DisableVerify); err != nil {
 			return i.failRelease(rel, fmt.Errorf("failed pre-install: %s", err))
 		}
 	}
@@ -287,7 +288,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 	}
 
 	if !i.DisableHooks {
-		if err := i.cfg.execHook(rel, release.HookPostInstall, i.Timeout); err != nil {
+		if err := i.cfg.execHook(rel, release.HookPostInstall, i.Timeout, i.DisableVerify); err != nil {
 			return i.failRelease(rel, fmt.Errorf("failed post-install: %s", err))
 		}
 	}

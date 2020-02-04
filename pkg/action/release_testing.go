@@ -60,7 +60,7 @@ func (r *ReleaseTesting) Run(name string) (*release.Release, error) {
 		return rel, err
 	}
 
-	if err := r.cfg.execHook(rel, release.HookTest, r.Timeout); err != nil {
+	if err := r.cfg.execHook(rel, release.HookTest, r.Timeout, true); err != nil {
 		r.cfg.Releases.Update(rel)
 		return rel, err
 	}
